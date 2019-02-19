@@ -1,0 +1,162 @@
+1. Use the given link Data Set.https://archive.ics.uci.edu/ml/datasets/Yeast
+Answer the below questions:
+
+a. Perform ANOVA test on the discriminant analysis scores of nuclear localization signals of both nuclear and non-nuclear proteins by class variables (Target).
+
+library(tidyverse)
+yeast <- read.table('https://archive.ics.uci.edu/ml/machine-learning-databases/yeast/yeast.data', stringsAsFactors = FALSE) 
+View(yeast) 
+summary(yeast)
+dim(yeast)
+str(yeast)
+
+l <- readLines('https://archive.ics.uci.edu/ml/machine-learning-databases/yeast/yeast.names') 
+l <- l[(grep('^7', l) + 1):(grep('^8', l) - 1)] 
+l <- l[grep('\\d\\..*:', l)] 
+names(yeast) <- make.names(c(sub('.*\\d\\.\\s+(.*):.*', '\\1', l), 'class')) 
+str(yeast)
+
+pca <- princomp(yeast[, 2:9], cor=T) # principal components analysis using correlation matrix 
+pc.comp <- pca$scores 
+PrincipalComponent1 <- -1*pc.comp[,1] # principal component 1 scores (negated for convenience) 
+PrincipalComponent2 <- -1*pc.comp[,2] # principal component 2 scores (negated for convenience) 
+clustering.data <- cbind(PrincipalComponent1, PrincipalComponent2) 
+
+# K-Mean Clustering 
+set.seed(100) 
+km <- kmeans(clustering.data, 8, iter.max = 30, nstart=30) 
+km
+km$cluster
+
+names(yeast)<- c("SequenceName", "mcg", "gvh", "alm", "mit", "erl", "pox", "vac", "nuc", "LocalizationSite") 
+aggregate(yeast[, 2:9],by=list(km$cluster),mean)
+
+plot(PrincipalComponent1, PrincipalComponent2, col=km$cluster) points(km$centers, pch=16)
+
+table(km$cluster, yeast$LocalizationSite)
+
+library(kknn)
+cl <- specClust(clustering.data, centers=8, nn=50, iter.max=100) 
+cl
+
+plot(PrincipalComponent1, PrincipalComponent2, col=cl$cluster)
+
+table(cl$cluster, yeast$LocalizationSite)
+
+aggregate(yeast[, 2:9],by=list(cl$cluster),mean)
+
+#Hierarchical Clustering 
+d_yeast<- dist(clustering.data) 
+hclusters <- hclust(d_yeast, method = "average") 
+clusterCut <- cutree(hclusters, 8) 
+clusterCut
+
+table(clusterCut, yeast$LocalizationSite)
+
+aggregate(yeast[, 2:9],by=list(clusterCut),mean)
+
+plot(PrincipalComponent1, PrincipalComponent2, col=clusterCut)
+
+
+# Show a random sample 
+set.seed(1234) 
+dplyr::sample_n(yeast, 10)
+
+# Show the levels 
+levels(yeast$group)
+
+## NULL
+
+library(dplyr) 
+group_by(yeast, SequenceName) %>% 
+	summarise( 
+		count = n(), 
+		mean = mean(nuc, na.rm = TRUE), 
+		sd = sd(nuc, na.rm = TRUE) 
+	)
+
+
+b. Which class is significantly different from others?
+
+# Compute the analysis of variance 
+# Summary of the analysis 
+
+res.aov<-aov(nuc~ LocalizationSite,data=yeast) 
+summary(res.aov)
+
+                   Df Sum Sq Mean Sq F value Pr(>F)    
+LocalizationSite    9  1.993 0.22141   22.01 <2e-16 ***
+Residuals        1474 14.825 0.01006                   
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+
+res.aov <- aov(nuc ~ vac, data = yeast) 
+summary(res.aov)
+
+              Df Sum Sq Mean Sq F value   Pr(>F)    
+vac            1  0.135 0.13529   12.02 0.000542 ***
+Residuals   1482 16.682 0.01126                     
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+
+res.aov <- aov(nuc ~ pox, data = yeast) 
+summary(res.aov)
+
+              Df Sum Sq Mean Sq F value Pr(>F)
+pox            1  0.021 0.02138   1.887   0.17
+Residuals   1482 16.796 0.01133               
+
+
+res.aov <- aov(nuc ~ erl, data = yeast) 
+summary(res.aov)
+
+              Df Sum Sq  Mean Sq F value Pr(>F)
+erl            1   0.00 0.000135   0.012  0.913
+Residuals   1482  16.82 0.011348               
+
+
+res.aov <- aov(nuc ~mit , data = yeast) 
+summary(res.aov)
+
+              Df Sum Sq Mean Sq F value Pr(>F)  
+mit            1   0.05 0.05050   4.463 0.0348 *
+Residuals   1482  16.77 0.01131                 
+
+
+res.aov <- aov(nuc ~alm , data = yeast) 
+summary(res.aov)
+
+
+              Df Sum Sq  Mean Sq F value Pr(>F)
+alm            1  0.008 0.008171    0.72  0.396
+Residuals   1482 16.809 0.011342               
+
+
+res.aov <- aov(nuc ~gvh , data = yeast) 
+summary(res.aov)
+
+              Df Sum Sq Mean Sq F value   Pr(>F)    
+gvh            1  0.178 0.17836   15.89 7.05e-05 ***
+Residuals   1482 16.639 0.01123                     
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+
+res.aov <- aov(nuc ~ mcg, data = yeast) 
+summary(res.aov)
+
+              Df Sum Sq Mean Sq F value   Pr(>F)    
+mcg            1  0.261 0.26085   23.35 1.49e-06 ***
+Residuals   1482 16.557 0.01117                     
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+
+An alpha of 0.05 is used as the cutoff for significance. If the p-value is less than 0.05, we reject the null hypothesis that there's no difference between the means and conclude that a significant difference does exist. If the p-value is larger than 0.05, we cannot conclude that a significant difference exists. Below 0.05, significant. Over 0.05, not significant. 
+
+
+
+
+
